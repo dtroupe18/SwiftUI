@@ -5,7 +5,7 @@ import Foundation
 struct CounterFeature {
 
     @ObservableState
-    struct State {
+    struct State: Equatable {
         var count = 0
         var fact: String?
         var isLoading: Bool = false
@@ -25,6 +25,9 @@ struct CounterFeature {
         case timer
     }
 
+    @Dependency(\.continuousClock) var clock
+    @Dependency(\.numberFact) var numberFact
+
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
@@ -34,11 +37,10 @@ struct CounterFeature {
                 return .none
             case .factButtonTapped:
                 state.isLoading = true
-                return .run { [count = state.count] send in
-                    let (data, _) = try await URLSession.shared
-                        .data(from: URL(string: "http://numbersapi.com/\(count)")!)
+                state.fact = nil
 
-                    let fact = String(decoding: data, as: UTF8.self)
+                return .run { [count = state.count] send in
+                    let fact = try await self.numberFact.fetch(count)
                     await send(.factResponseFor(count: count, fact: fact))
                 }
             case .factResponseFor(count: let count, fact: let fact):
